@@ -4,7 +4,7 @@
 ## AnyKernel setup
 # begin properties
 properties() { '
-kernel.string=FloppyKernel Milestone 24.1 for Ginkgo | @Flopster101
+kernel.string=FloppyKernel Milestone 24.2 for Ginkgo | @Flopster101
 do.devicecheck=1
 do.modules=0
 do.systemless=1
