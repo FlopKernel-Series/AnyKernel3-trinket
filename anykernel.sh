@@ -42,7 +42,7 @@ if [ ! -e /vendor/etc/fstab.qcom ]; then
 			do_patch=0
 		fi
 	else
-	# If the block device for vendor isn't present at that location, it might mean this a dynamic partitions ROM.
+		# If the block device for vendor isn't present at that location, it might mean this a dynamic partitions ROM.
 		mount /vendor
 		if [ $? -ne 0 ]; then
 			do_patch=0
@@ -61,6 +61,22 @@ if [ $do_patch -eq 1 ]; then
 else
 	ui_print "Skipping cmdline patch because vendor could not be mounted!"
 fi
+
+# Get Android version from build.prop
+android_ver=$(file_getprop /system/build.prop ro.build.version.release)
+
+# Convert to integer (strip potential decimal points)
+android_ver=${android_ver%%.*}
+
+# Check if Android version is 11 or lower
+if [ "$android_ver" -le 11 ] 2>/dev/null; then
+    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=true"
+    ui_print "Legacy timestamp workaround enabled"
+else
+    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=false"
+    ui_print "Timestamp patch not needed"
+fi
+
 
 ## AnyKernel file attributes
 # set permissions/ownership for included ramdisk files
@@ -89,4 +105,3 @@ flash_dtbo;
 
 #flash_boot;
 ## end vendor_boot install
-
