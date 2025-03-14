@@ -50,9 +50,9 @@ if [ ! -e /vendor/etc/fstab.qcom ]; then
 	fi
 fi
 
-# Check for the presence of "first_stage_mount" in /vendor/etc/fstab
+# Check for the presence of "first_stage_mount" in /vendor/etc/fstab only for /system or /vendor
 if [ $do_patch -eq 1 ]; then
-	if grep -q "first_stage_mount" /vendor/etc/fstab.qcom; then
+	if grep "first_stage_mount" /vendor/etc/fstab.qcom | grep -E -q '(/system|/vendor)'; then
 		ui_print "Two-stage init ROM detected, no need to patch"
 	else
 		ui_print "Legacy ROM detected, patching cmdline..."
