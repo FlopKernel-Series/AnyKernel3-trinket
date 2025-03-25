@@ -70,10 +70,10 @@ android_ver=${android_ver%%.*}
 
 # Check if Android version is 11 or lower
 if [ "$android_ver" -le 11 ] 2>/dev/null; then
-    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=true"
+    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
     ui_print "Legacy timestamp workaround enabled"
 else
-    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=false"
+    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=0"
     ui_print "Timestamp patch not needed"
 fi
 
