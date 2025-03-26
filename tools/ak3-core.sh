@@ -254,6 +254,22 @@ flash_boot() {
   # Get header version (default to 0 if not found)
   HEADER_VER=$(cat header_ver 2>/dev/null || echo 0)
 
+  # Auto-split Image.gz-dtb into Image.gz + dtb for header v2 if needed
+  if [ "$HEADER_VER" -eq 2 ] && [ -f "$AKHOME/Image.gz-dtb" ] && { [ ! -f "$AKHOME/Image.gz" ] || [ ! -f "$AKHOME/dtb" ]; }; then
+    ui_print " " "Splitting Image.gz-dtb into Image.gz + dtb...";
+    cd $AKHOME;
+    magiskboot split Image.gz-dtb;
+    if [ -f kernel ] && [ -f kernel_dtb ]; then
+      gzip -c kernel > Image.gz  # Recompress decompressed kernel
+      mv kernel_dtb dtb;
+      rm -f kernel;
+      ui_print " " "Split successful";
+    else
+      abort "Failed to split Image.gz-dtb. Aborting...";
+    fi;
+    cd $SPLITIMG;
+  fi;
+
   # Kernel selection logic based on header version
   if [ "$HEADER_VER" -eq 0 ]; then
     # Header v0 - require combined Image.gz-dtb
