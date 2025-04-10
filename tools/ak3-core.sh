@@ -271,14 +271,14 @@ flash_boot() {
   fi;
 
   # Kernel selection logic based on header version
-  if [ "$HEADER_VER" -eq 0 ]; then
-    # Header v0 - require combined Image.gz-dtb
+  if [ "$HEADER_VER" -eq 0 ] || [ "$HEADER_VER" -eq 1 ]; then
+    # Header v0 and v1 - require combined Image.gz-dtb
     if [ -f $AKHOME/Image.gz-dtb ]; then
       kernel=$AKHOME/Image.gz-dtb
-      ui_print " " "Using combined Image.gz-dtb for header v0"
+      ui_print " " "Using combined Image.gz-dtb for header v$HEADER_VER"
       unset dt  # Explicitly unset dt for combined format
     else
-      abort "Header version 0 requires Image.gz-dtb. Aborting..."
+      abort "Header version $HEADER_VER requires Image.gz-dtb. Aborting..."
     fi
   elif [ "$HEADER_VER" -eq 2 ]; then
     # Header v2 - require separate Image.gz and dtb
