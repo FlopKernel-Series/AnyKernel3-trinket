@@ -66,6 +66,19 @@ else
 	ui_print "Skipping cmdline patch because vendor could not be mounted!"
 fi
 
+# Enable bpf spoofing
+patch_uname_bpf_spoof() {
+	patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
+}
+
+# if device is running HyperMINT ROM
+if [ -f /vendor/build.prop ]; then
+	if grep -q -E 'MINT|mintdevice' /vendor/build.prop; then
+		ui_print "HyperMINT ROM detected, enabling bpf spoof..."
+		patch_uname_bpf_spoof
+	fi
+fi
+
 # Get Android version from build.prop
 android_ver=$(file_getprop /system/build.prop ro.build.version.release)
 
