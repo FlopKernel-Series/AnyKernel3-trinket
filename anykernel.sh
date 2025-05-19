@@ -4,14 +4,13 @@
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=FloppyKernel v1.0 (early) for Ginkgo | @Flopster101
+kernel.string=FloppyKernel v1.0 (early) for laurel_sprout | @Flopster101
 do.devicecheck=1
 do.modules=0
 do.systemless=1
 do.cleanup=1
 do.cleanuponabort=0
-device.name1=ginkgo
-device.name2=willow
+device.name1=laurel_sprout
 supported.versions=10.0-15.0
 supported.patchlevels=
 supported.vendorpatchlevels=
@@ -66,33 +65,34 @@ else
 	ui_print "Skipping cmdline patch because vendor could not be mounted!"
 fi
 
+## NOT USED for laurel
 # Enable bpf spoofing
-patch_uname_bpf_spoof() {
-	patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
-}
+# patch_uname_bpf_spoof() {
+# 	patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
+# }
 
-# if device is running HyperMINT ROM
-if [ -f /vendor/build.prop ]; then
-	if grep -q -E 'MINT|mintdevice' /vendor/build.prop; then
-		ui_print "HyperMINT ROM detected, enabling bpf spoof..."
-		patch_uname_bpf_spoof
-	fi
-fi
+# # if device is running HyperMINT ROM
+# if [ -f /vendor/build.prop ]; then
+# 	if grep -q -E 'MINT|mintdevice' /vendor/build.prop; then
+# 		ui_print "HyperMINT ROM detected, enabling bpf spoof..."
+# 		patch_uname_bpf_spoof
+# 	fi
+# fi
 
-# Get Android version from build.prop
-android_ver=$(file_getprop /system/build.prop ro.build.version.release)
+# # Get Android version from build.prop
+# android_ver=$(file_getprop /system/build.prop ro.build.version.release)
 
-# Convert to integer (strip potential decimal points)
-android_ver=${android_ver%%.*}
+# # Convert to integer (strip potential decimal points)
+# android_ver=${android_ver%%.*}
 
-# Check if Android version is 11 or lower
-if [ "$android_ver" -le 11 ] 2>/dev/null; then
-    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-    ui_print "Legacy timestamp workaround enabled"
-else
-    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=0"
-    ui_print "Timestamp patch not needed"
-fi
+# # Check if Android version is 11 or lower
+# if [ "$android_ver" -le 11 ] 2>/dev/null; then
+#     patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
+#     ui_print "Legacy timestamp workaround enabled"
+# else
+#     patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=0"
+#     ui_print "Timestamp patch not needed"
+# fi
 
 flash_boot; # use flash_boot to skip ramdisk repack, e.g. for devices with init_boot ramdisk
 flash_dtbo;
