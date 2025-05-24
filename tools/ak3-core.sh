@@ -259,9 +259,8 @@ flash_boot() {
     ui_print " " "Splitting Image.gz-dtb into Image.gz + dtb...";
     cd $AKHOME;
     magiskboot split Image.gz-dtb;
-    if [ -f kernel ] && [ -f kernel_dtb ]; then
+    if [ -f kernel ]; then
       gzip -c kernel > Image.gz  # Recompress decompressed kernel
-      mv kernel_dtb dtb;
       rm -f kernel;
       ui_print " " "Split successful";
     else
@@ -288,9 +287,11 @@ flash_boot() {
     else
       abort "Header version 2 requires Image.gz. Aborting..."
     fi
-    # Verify dtb exists
-    if [ ! -f $AKHOME/dtb ] && [ ! -f $SPLITIMG/dtb ]; then
-      abort "Header version 2 requires a separate dtb. Aborting..."
+    # Only use dtb from AKHOME, error if not found
+    if [ -f $AKHOME/dtb ]; then
+      dt=$AKHOME/dtb
+    else
+      abort "Header version 2 requires a dtb in AKHOME. Aborting..."
     fi
   else
     # Original kernel detection for other header versions
