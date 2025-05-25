@@ -57,10 +57,10 @@ fi
 # Check for the presence of "first_stage_mount" in /vendor/etc/fstab only for /system or /vendor
 if [ $do_patch -eq 1 ]; then
 	if grep "first_stage_mount" /vendor/etc/fstab.qcom | grep -E -q '(/system|/vendor)'; then
-		ui_print "Two-stage init ROM detected, no need to patch"
+		ui_print "Two-stage init ROM detected, patching cmdline..."
+		patch_cmdline "tsinit" "tsinit"
 	else
-		ui_print "Legacy ROM detected, patching cmdline..."
-		patch_cmdline "fstabdt_keep" "fstabdt_keep"
+		ui_print "Legacy init ROM detected, no need to patch"
 	fi
 else
 	ui_print "Skipping cmdline patch because vendor could not be mounted!"
