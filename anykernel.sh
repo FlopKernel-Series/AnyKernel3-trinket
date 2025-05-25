@@ -12,7 +12,7 @@ do.cleanup=1
 do.cleanuponabort=0
 device.name1=ginkgo
 device.name2=willow
-supported.versions=10.0-15.0
+supported.versions=10.0-16.0
 supported.patchlevels=
 supported.vendorpatchlevels=
 '; } # end properties
