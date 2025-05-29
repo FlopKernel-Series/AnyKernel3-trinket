@@ -85,7 +85,7 @@ fi
 # # Convert to integer (strip potential decimal points)
 # android_ver=${android_ver%%.*}
 
-# # Check if Android version is 11 or lower
+# Check if Android version is 11 or lower
 # if [ "$android_ver" -le 11 ] 2>/dev/null; then
 #     patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
 #     ui_print "Legacy timestamp workaround enabled"
@@ -93,6 +93,10 @@ fi
 #     patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=0"
 #     ui_print "Timestamp patch not needed"
 # fi
+
+# Always enable legacy timestamp workaround for laurel
+patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
+ui_print "Legacy timestamp workaround enabled"
 
 flash_boot; # use flash_boot to skip ramdisk repack, e.g. for devices with init_boot ramdisk
 flash_dtbo;
