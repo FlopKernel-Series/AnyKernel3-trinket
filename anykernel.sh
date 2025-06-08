@@ -79,9 +79,16 @@ fi
 # 	fi
 # fi
 
+# Check for IR HAL type
+if [ -f /vendor/bin/hw/android.hardware.ir-service.lineage ]; then
+	ui_print "LIRC-based IR HAL detected"
+else
+	ui_print "Legacy spidev IR HAL detected"
+	patch_cmdline "legacy_ir_hal" "legacy_ir_hal=1"
+fi
+
 # # Get Android version from build.prop
 # android_ver=$(file_getprop /system/build.prop ro.build.version.release)
-
 # # Convert to integer (strip potential decimal points)
 # android_ver=${android_ver%%.*}
 
