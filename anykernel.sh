@@ -87,19 +87,16 @@ else
 	patch_cmdline "legacy_ir_hal" "legacy_ir_hal=1"
 fi
 
-# # Get Android version from build.prop
-# android_ver=$(file_getprop /system/build.prop ro.build.version.release)
-# # Convert to integer (strip potential decimal points)
-# android_ver=${android_ver%%.*}
+# Get Android version from build.prop
+android_ver=$(file_getprop /system/build.prop ro.build.version.release)
+# Convert to integer (strip potential decimal points)
+android_ver=${android_ver%%.*}
 
 # Check if Android version is 11 or lower
-# if [ "$android_ver" -le 11 ] 2>/dev/null; then
-#     patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-#     ui_print "Legacy timestamp workaround enabled"
-# else
-#     patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=0"
-#     ui_print "Timestamp patch not needed"
-# fi
+if [ "$android_ver" -le 11 ] 2>/dev/null; then
+    patch_cmdline "no_kernel_dimming" "no_kernel_dimming=1"
+    ui_print "Disabling kernel dimming support due to Android version (experimental)"
+fi
 
 # Always enable legacy timestamp workaround for laurel
 patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
