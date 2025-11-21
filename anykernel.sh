@@ -1,18 +1,20 @@
 ### AnyKernel3 Ramdisk Mod Script
 ## osm0sis @ xda-developers
 
+## FloppyKernel Feature Toggle Patcher
+
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=FloppyKernel v1.2| @Flopster101
+kernel.string=FloppyKernel Feature Patcher for Trinket-Mi
 do.devicecheck=1
 do.modules=0
-do.systemless=1
+do.systemless=0
 do.cleanup=1
 do.cleanuponabort=0
 device.name1=ginkgo
 device.name2=willow
-supported.versions=10.0-16.0
+supported.versions=
 supported.patchlevels=
 supported.vendorpatchlevels=
 '; } # end properties
@@ -34,135 +36,212 @@ PATCH_VBMETA_FLAG=auto;
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh;
 
-# boot install
-split_boot; # use split_boot to skip ramdisk unpack, e.g. for devices with init_boot ramdisk
+# Read action, feature flag, feature name, and descriptions from files in the zip
+ACTION=""
+FEATURE_FLAG=""
+FEATURE_NAME=""
+COMMENT=""
+GENERAL_DESC=""
+VALUE_DESC=""
+VALUE=""
 
-# Check if vendor isn't already mounted. This should make the detection work on flasher apps.
-do_patch=1;
-if [ ! -e /vendor/etc/fstab.qcom ]; then
-	if [ -e /dev/block/by-name/vendor ]; then
-		mount /dev/block/by-name/vendor /vendor
-		if [ $? -ne 0 ]; then
-			do_patch=0
-		fi
-	else
-		# If the block device for vendor isn't present at that location, it might mean this a dynamic partitions ROM.
-		mount /vendor
-		if [ $? -ne 0 ]; then
-			do_patch=0
-		fi
-	fi
+if [ -f "$AKHOME/patcher_action" ]; then
+  ACTION=$(cat "$AKHOME/patcher_action" 2>/dev/null)
 fi
 
-# Check for the presence of "first_stage_mount" in /vendor/etc/fstab only for /system or /vendor
-if [ $do_patch -eq 1 ]; then
-	if grep "first_stage_mount" /vendor/etc/fstab.qcom | grep -E -q '(/system|/vendor)'; then
-		ui_print "Two-stage init ROM detected, patching cmdline..."
-		patch_cmdline "tsinit" "tsinit"
-	else
-		ui_print "Legacy init ROM detected, no need to patch"
-	fi
+if [ -f "$AKHOME/patcher_feature" ]; then
+  FEATURE_FLAG=$(cat "$AKHOME/patcher_feature" 2>/dev/null)
+fi
+
+if [ -f "$AKHOME/patcher_feature_name" ]; then
+  FEATURE_NAME=$(cat "$AKHOME/patcher_feature_name" 2>/dev/null)
+fi
+
+if [ -f "$AKHOME/patcher_comment" ]; then
+  COMMENT=$(cat "$AKHOME/patcher_comment" 2>/dev/null)
+fi
+
+if [ -f "$AKHOME/patcher_general_desc" ]; then
+  GENERAL_DESC=$(cat "$AKHOME/patcher_general_desc" 2>/dev/null)
+fi
+
+if [ -f "$AKHOME/patcher_value_desc" ]; then
+  VALUE_DESC=$(cat "$AKHOME/patcher_value_desc" 2>/dev/null)
+fi
+
+if [ -f "$AKHOME/patcher_value" ]; then
+  VALUE=$(cat "$AKHOME/patcher_value" 2>/dev/null)
+fi
+
+RANGE_MIN=""
+RANGE_MAX=""
+if [ -f "$AKHOME/patcher_range_min" ]; then
+  RANGE_MIN=$(cat "$AKHOME/patcher_range_min" 2>/dev/null | tr -d '\n')
+fi
+if [ -f "$AKHOME/patcher_range_max" ]; then
+  RANGE_MAX=$(cat "$AKHOME/patcher_range_max" 2>/dev/null | tr -d '\n')
+fi
+
+if [ -z "$ACTION" ] || [ -z "$FEATURE_FLAG" ]; then
+  ui_print "ERROR: Invalid patcher zip! Missing action or feature flag."
+  exit 1
+fi
+
+# Use feature name if available, otherwise fall back to flag
+if [ -z "$FEATURE_NAME" ]; then
+  FEATURE_NAME="$FEATURE_FLAG"
+fi
+
+ui_print " "
+ui_print "-> Patcher info"
+ui_print "Feature: $FEATURE_NAME"
+if [ "$ACTION" = "set" ]; then
+  ui_print "Action: Set value"
 else
-	ui_print "Skipping cmdline patch because vendor could not be mounted!"
+  ui_print "Action: $ACTION"
 fi
 
-# Enable bpf spoofing
-patch_uname_bpf_spoof() {
-	patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
-}
-
-# if device is running HyperMINT ROM
-if [ -f /vendor/build.prop ]; then
-	if grep -q -E 'MINT|mintdevice' /vendor/build.prop; then
-		ui_print "HyperMINT ROM detected, enabling bpf spoof..."
-		patch_uname_bpf_spoof
-	fi
+# Display descriptions based on type
+if [ -n "$GENERAL_DESC" ]; then
+  ui_print "General description: \"$GENERAL_DESC\""
 fi
+if [ -n "$VALUE_DESC" ]; then
+  ui_print "Value description: \"$VALUE_DESC\""
+elif [ -n "$COMMENT" ]; then
+  ui_print "Description: \"$COMMENT\""
+fi
+ui_print " "
 
-# Check for IR HAL type
-if [ -f /vendor/bin/hw/android.hardware.ir-service.lineage ]; then
-	ui_print "LIRC-based IR HAL detected"
+# Check if /cache is mounted, try to mount if not
+cache_mounted=0;
+if mountpoint -q /cache 2>/dev/null; then
+  cache_mounted=1;
 else
-	ui_print "Legacy spidev IR HAL detected"
-	patch_cmdline "legacy_ir_hal" "legacy_ir_hal=1"
+  ui_print "Mounting /cache..."
+  if mount /cache 2>/dev/null; then
+    cache_mounted=1;
+  else
+    ui_print "Warning: Cannot mount /cache!"
+    ui_print "Your choice will NOT be saved."
+    ui_print "Please ensure /cache partition is accessible."
+    ui_print "Continuing anyway..."
+  fi
 fi
 
-# Get Android version from build.prop
-android_ver=$(file_getprop /system/build.prop ro.build.version.release)
+# Split boot to access cmdline
+split_boot;
 
-# Convert to integer (strip potential decimal points)
-android_ver=${android_ver%%.*}
-
-# Check if Android version is 11 or lower
-if [ "$android_ver" -le 11 ] 2>/dev/null; then
-    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-    ui_print "Legacy timestamp workaround enabled"
+# Patch the kernel cmdline based on action
+if [ "$ACTION" = "enable" ]; then
+  # Enable feature: add flag=1 to cmdline
+  patch_cmdline "$FEATURE_FLAG" "${FEATURE_FLAG}=1"
+  ui_print "Feature enabled in kernel cmdline."
+elif [ "$ACTION" = "disable" ]; then
+  # Disable feature: remove flag from cmdline or set to 0
+  # For bool types, we remove it; for int types, we might set to -1
+  if [ -n "$GENERAL_DESC" ]; then
+    # Int type - set to -1 or remove
+    patch_cmdline "$FEATURE_FLAG" "${FEATURE_FLAG}=-1"
+    ui_print "Feature disabled in kernel cmdline (set to -1)."
+  else
+    # Bool type - remove from cmdline by setting to empty
+    patch_cmdline "$FEATURE_FLAG" ""
+    ui_print "Feature disabled in kernel cmdline (removed)."
+  fi
+elif [ "$ACTION" = "set" ]; then
+  # Set feature to specific value
+  if [ -z "$VALUE" ]; then
+    ui_print "ERROR: Set action requires a value!"
+    exit 1
+  fi
+  patch_cmdline "$FEATURE_FLAG" "${FEATURE_FLAG}=${VALUE}"
+  ui_print "Feature set to ${VALUE} in kernel cmdline."
 else
-    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=0"
-    ui_print "Timestamp patch not needed"
+  ui_print "ERROR: Unknown action: $ACTION"
+  exit 1
 fi
 
-flash_boot; # use flash_boot to skip ramdisk repack, e.g. for devices with init_boot ramdisk
-flash_dtbo;
-## end boot install
+# Write boot partition back
+flash_boot;
+if [ $? -ne 0 ]; then
+  ui_print "ERROR: Writing boot partition failed!"
+  exit 1
+fi
 
+# Save feature flag to /cache/fk_feat for future kernel installations
+if [ "$cache_mounted" -eq 1 ]; then
+  # Read existing feature flags or create empty file
+  FEAT_FILE="/cache/fk_feat"
+  if [ -f "$FEAT_FILE" ]; then
+    FEATURES=$(cat "$FEAT_FILE" 2>/dev/null)
+  else
+    FEATURES=""
+  fi
 
-## init_boot files attributes
-#init_boot_attributes() {
-#set_perm_recursive 0 0 755 644 $RAMDISK/*;
-#set_perm_recursive 0 0 750 750 $RAMDISK/init* $RAMDISK/sbin;
-#} # end attributes
+  if [ "$ACTION" = "enable" ]; then
+    # Add feature flag if not already present (bool type)
+    if ! echo "$FEATURES" | grep -q "^$FEATURE_FLAG$" 2>/dev/null; then
+      # Append feature flag (one per line)
+      if [ -n "$FEATURES" ]; then
+        echo "$FEATURES" > "$FEAT_FILE"
+        echo "$FEATURE_FLAG" >> "$FEAT_FILE"
+      else
+        echo "$FEATURE_FLAG" > "$FEAT_FILE"
+      fi
+      ui_print " "
+      ui_print "Feature flag saved to /cache/fk_feat."
+    else
+      # Flag already exists, but still confirm it's saved
+      ui_print " "
+      ui_print "Feature flag already saved in /cache/fk_feat."
+    fi
+  elif [ "$ACTION" = "set" ]; then
+    # Set feature flag with value (int type)
+    FLAG_ENTRY="${FEATURE_FLAG}=${VALUE}"
+    # Remove any existing entry for this flag (with any value)
+    NEW_FEATURES=$(echo "$FEATURES" | grep -v "^${FEATURE_FLAG}=" 2>/dev/null || true)
+    # Add the new entry
+    if [ -n "$NEW_FEATURES" ]; then
+      echo "$NEW_FEATURES" > "$FEAT_FILE"
+      echo "$FLAG_ENTRY" >> "$FEAT_FILE"
+    else
+      echo "$FLAG_ENTRY" > "$FEAT_FILE"
+    fi
+    ui_print " "
+    ui_print "Feature flag saved to /cache/fk_feat."
+  elif [ "$ACTION" = "disable" ]; then
+    if [ -n "$GENERAL_DESC" ]; then
+      # Int type disable - set to -1
+      FLAG_ENTRY="${FEATURE_FLAG}=-1"
+      # Remove any existing entry for this flag (with any value)
+      NEW_FEATURES=$(echo "$FEATURES" | grep -v "^${FEATURE_FLAG}=" 2>/dev/null || true)
+      # Add the -1 entry
+      if [ -n "$NEW_FEATURES" ]; then
+        echo "$NEW_FEATURES" > "$FEAT_FILE"
+        echo "$FLAG_ENTRY" >> "$FEAT_FILE"
+      else
+        echo "$FLAG_ENTRY" > "$FEAT_FILE"
+      fi
+      ui_print " "
+      ui_print "Feature flag set to disabled in /cache/fk_feat."
+    else
+      # Bool type disable - remove feature flag
+      if echo "$FEATURES" | grep -q "^$FEATURE_FLAG$" 2>/dev/null; then
+        # Remove the line containing the feature flag
+        echo "$FEATURES" | grep -v "^$FEATURE_FLAG$" > "$FEAT_FILE"
+        ui_print " "
+        ui_print "Feature flag removed from /cache/fk_feat."
+      else
+        # Flag already removed, but still confirm
+        ui_print " "
+        ui_print "Feature flag already removed from /cache/fk_feat."
+      fi
+    fi
+  fi
+else
+  ui_print "Warning: Could not save feature flag to /cache (not accessible)."
+  ui_print "The current kernel has been patched, but the flag won't persist for future installations."
+fi
 
-# init_boot shell variables
-#BLOCK=init_boot;
-#IS_SLOT_DEVICE=1;
-#RAMDISK_COMPRESSION=auto;
-#PATCH_VBMETA_FLAG=auto;
-
-# reset for init_boot patching
-#reset_ak;
-
-# init_boot install
-#dump_boot; # unpack ramdisk since it is the new first stage init ramdisk where overlay.d must go
-
-#write_boot;
-## end init_boot install
-
-
-## vendor_kernel_boot shell variables
-#BLOCK=vendor_kernel_boot;
-#IS_SLOT_DEVICE=1;
-#RAMDISK_COMPRESSION=auto;
-#PATCH_VBMETA_FLAG=auto;
-
-# reset for vendor_kernel_boot patching
-#reset_ak;
-
-# vendor_kernel_boot install
-#split_boot; # skip unpack/repack ramdisk, e.g. for dtb on devices with hdr v4 and vendor_kernel_boot
-
-#flash_boot;
-## end vendor_kernel_boot install
-
-
-## vendor_boot files attributes
-#vendor_boot_attributes() {
-#set_perm_recursive 0 0 755 644 $RAMDISK/*;
-#set_perm_recursive 0 0 750 750 $RAMDISK/init* $RAMDISK/sbin;
-#} # end attributes
-
-# vendor_boot shell variables
-#BLOCK=vendor_boot;
-#IS_SLOT_DEVICE=1;
-#RAMDISK_COMPRESSION=auto;
-#PATCH_VBMETA_FLAG=auto;
-
-# reset for vendor_boot patching
-#reset_ak;
-
-# vendor_boot install
-#dump_boot; # use split_boot to skip ramdisk unpack, e.g. for dtb on devices with hdr v4 but no vendor_kernel_boot
-
-#write_boot; # use flash_boot to skip ramdisk repack, e.g. for dtb on devices with hdr v4 but no vendor_kernel_boot
-## end vendor_boot install
-
+ui_print " "
+ui_print "Please reboot for changes to take effect."

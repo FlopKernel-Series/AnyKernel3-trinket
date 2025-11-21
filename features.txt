@@ -1,0 +1,10 @@
+bool: init_protection | InitProtection | Init protection
+
+bool: legacy_timestamp_source | LegacyTimestampSource | Legacy Timestamp
+
+bool: uname_bpf_spoof | BpfSpoof | Linux version spoofing for BPF
+
+bool: no_msm_perf_boost | MSMPerfNuke | Disable MSM Performance boosting
+
+bool: warm_reboot | ForceWarmReboot | Forced warm reboot
+

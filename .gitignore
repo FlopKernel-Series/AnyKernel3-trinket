@@ -1,0 +1,19 @@
+# Build artifacts
+out/
+patcher_zips/
+
+# Generated patcher files
+patcher_action
+patcher_feature
+patcher_feature_name
+patcher_comment
+patcher_patch_old
+patcher_patch_new
+patcher_general_desc
+patcher_value_desc
+patcher_value
+patcher_range_min
+patcher_range_max
+
+# Other
+__pycache__
