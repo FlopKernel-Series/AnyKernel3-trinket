@@ -65,6 +65,47 @@ else
 	ui_print "Skipping cmdline patch because vendor could not be mounted!"
 fi
 
+# Check if /cache is mounted, try to mount if not
+cache_mounted=0;
+if mountpoint -q /cache 2>/dev/null; then
+  cache_mounted=1;
+else
+  if mount /cache 2>/dev/null; then
+    cache_mounted=1;
+  fi
+fi
+
+# Check for feature flags in /cache/fk_feat
+fk_feat_legacy_timestamp=0
+
+if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
+  if grep -q "no_init_protection" /cache/fk_feat 2>/dev/null; then
+    ui_print "Reloaded feature: Kill init protection"
+    patch_cmdline "no_init_protection" "no_init_protection=1"
+  fi
+
+  if grep -q "legacy_timestamp_source" /cache/fk_feat 2>/dev/null; then
+    ui_print "Reloaded feature: Legacy Timestamp"
+    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
+    fk_feat_legacy_timestamp=1
+  fi
+
+  if grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
+    ui_print "Reloaded feature: Linux version spoofing for BPF"
+    patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
+  fi
+
+  if grep -q "no_msm_perf_boost" /cache/fk_feat 2>/dev/null; then
+    ui_print "Reloaded feature: MSM Performance boosting"
+    patch_cmdline "no_msm_perf_boost" "no_msm_perf_boost=1"
+  fi
+
+  if grep -q "warm_reboot" /cache/fk_feat 2>/dev/null; then
+    ui_print "Reloaded feature: Forced warm reboot"
+    patch_cmdline "warm_reboot" "warm_reboot=1"
+  fi
+fi
+
 ## NOT USED for laurel
 # Enable bpf spoofing
 # patch_uname_bpf_spoof() {
@@ -98,9 +139,11 @@ if [ "$android_ver" -le 11 ] 2>/dev/null; then
     ui_print "Disabling kernel dimming support due to Android version (experimental)"
 fi
 
-# Always enable legacy timestamp workaround for laurel
-patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-ui_print "Legacy timestamp workaround enabled"
+# Always enable legacy timestamp workaround for laurel (unless overridden by fk_feat)
+if [ "$fk_feat_legacy_timestamp" -eq 0 ]; then
+  patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
+  ui_print "Legacy timestamp workaround enabled"
+fi
 
 flash_boot; # use flash_boot to skip ramdisk repack, e.g. for devices with init_boot ramdisk
 flash_dtbo;
