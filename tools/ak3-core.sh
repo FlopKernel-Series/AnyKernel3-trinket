@@ -872,6 +872,25 @@ setup_ak() {
   [ "$no_magisk_check" ] && NO_MAGISK_CHECK="$no_magisk_check";
   unset block is_slot_device ramdisk_compression patch_vbmeta_flag customdd slot_select no_block_display no_magisk_check;
 
+  # Auto-detect A/B devices: check if device is laurel_sprout (device check already validated it's in the list)
+  if [ "$IS_SLOT_DEVICE" == 0 ]; then
+    for testname in $(grep '^device.name.*=' $AKHOME/anykernel.sh 2>/dev/null | cut -d= -f2-); do
+      if [ "$testname" == "laurel_sprout" ]; then
+        device=$(getprop ro.product.device 2>/dev/null);
+        product=$(getprop ro.build.product 2>/dev/null);
+        vendordevice=$(getprop ro.product.vendor.device 2>/dev/null);
+        vendorproduct=$(getprop ro.vendor.product.device 2>/dev/null);
+        for devicename in $device $product $vendordevice $vendorproduct; do
+          if [ "$devicename" == "laurel_sprout" ]; then
+            IS_SLOT_DEVICE=1;
+            break 2;
+          fi;
+        done;
+        break;
+      fi;
+    done;
+  fi;
+
   # slot detection enabled by IS_SLOT_DEVICE=1 or auto (from anykernel.sh)
   case $IS_SLOT_DEVICE in
     1|auto)

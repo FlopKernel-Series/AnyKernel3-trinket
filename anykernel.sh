@@ -14,6 +14,7 @@ do.cleanup=1
 do.cleanuponabort=0
 device.name1=ginkgo
 device.name2=willow
+device.name3=laurel_sprout
 supported.versions=
 supported.patchlevels=
 supported.vendorpatchlevels=
