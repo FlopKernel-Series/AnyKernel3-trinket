@@ -270,32 +270,31 @@ flash_boot() {
   fi;
 
   # Kernel selection logic based on header version
+  # Only enforce kernel requirements if a new kernel is being provided (patcher zips don't include kernels)
   if [ "$HEADER_VER" -eq 0 ] || [ "$HEADER_VER" -eq 1 ]; then
-    # Header v0 and v1 - require combined Image.gz-dtb
+    # Header v0 and v1 - require combined Image.gz-dtb (only if provided)
     if [ -f $AKHOME/Image.gz-dtb ]; then
       kernel=$AKHOME/Image.gz-dtb
       ui_print " " "Using combined Image.gz-dtb for header v$HEADER_VER"
       unset dt  # Explicitly unset dt for combined format
-    else
-      abort "Header version $HEADER_VER requires Image.gz-dtb. Aborting..."
     fi
   elif [ "$HEADER_VER" -eq 2 ]; then
-    # Header v2 - require separate Image.gz and dtb
+    # Header v2 - require separate Image.gz and dtb (only if provided)
     if [ -f $AKHOME/Image.gz ]; then
       kernel=$AKHOME/Image.gz
       ui_print " " "Using separate Image.gz + dtb for header v2"
-    else
-      abort "Header version 2 requires Image.gz. Aborting..."
+      # Only use dtb from AKHOME
+      if [ -f $AKHOME/dtb ]; then
+        dt=$AKHOME/dtb
+      fi
     fi
-    # Only use dtb from AKHOME, error if not found
-    if [ -f $AKHOME/dtb ]; then
-      dt=$AKHOME/dtb
-    else
-      abort "Header version 2 requires a dtb in AKHOME. Aborting..."
+  fi
+
+  # If no kernel was selected from AKHOME, fall back to original detection (from SPLITIMG or AKHOME)
+  if [ ! "$kernel" ]; then
+    if [ "$HEADER_VER" != 0 ] && [ "$HEADER_VER" != 1 ] && [ "$HEADER_VER" != 2 ]; then
+      ui_print " " "Using auto-detected kernel for header v$HEADER_VER"
     fi
-  else
-    # Original kernel detection for other header versions
-    ui_print " " "Using auto-detected kernel for header v$HEADER_VER"
     for i in zImage zImage-dtb Image Image-dtb Image.gz Image.gz-dtb Image.bz2 Image.bz2-dtb Image.lzo Image.lzo-dtb Image.lzma Image.lzma-dtb Image.xz Image.xz-dtb Image.lz4 Image.lz4-dtb Image.fit; do
       if [ -f $i ]; then
         kernel=$AKHOME/$i;
