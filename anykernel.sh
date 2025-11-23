@@ -81,9 +81,9 @@ fk_feat_legacy_timestamp=0
 fk_feat_uname_bpf_spoof=0
 
 if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
-  if grep -q "init_protection" /cache/fk_feat 2>/dev/null; then
-    ui_print "Reloaded feature: Init protection"
-    patch_cmdline "init_protection" "init_protection=1"
+  if grep -q "no_init_protection" /cache/fk_feat 2>/dev/null; then
+    ui_print "Reloaded feature: Kill init protection"
+    patch_cmdline "no_init_protection" "no_init_protection=1"
   fi
 
   if grep -q "legacy_timestamp_source" /cache/fk_feat 2>/dev/null; then
