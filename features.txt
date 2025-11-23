@@ -1,4 +1,4 @@
-bool: init_protection | InitProtection | Init protection
+bool: no_init_protection | KillInitProtection | Kill Init protection
 
 bool: legacy_timestamp_source | LegacyTimestampSource | Legacy Timestamp
 
