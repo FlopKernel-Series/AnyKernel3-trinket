@@ -78,7 +78,7 @@ fi
 
 # Check for feature flags in /cache/fk_feat
 fk_feat_legacy_timestamp=0
-fk_feat_uname_bpf_spoof=0
+# fk_feat_uname_bpf_spoof=0
 
 if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
   if grep -q "no_init_protection" /cache/fk_feat 2>/dev/null; then
@@ -95,7 +95,7 @@ if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
   if grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
     ui_print "Reloaded feature: Linux version spoofing for BPF"
     patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
-    fk_feat_uname_bpf_spoof=1
+    # fk_feat_uname_bpf_spoof=1
   fi
 
   if grep -q "no_msm_perf_boost" /cache/fk_feat 2>/dev/null; then
@@ -109,18 +109,24 @@ if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
   fi
 fi
 
-# Enable bpf spoofing (only if not already set via fk_feat)
-if [ "$fk_feat_uname_bpf_spoof" -eq 0 ]; then
-  patch_uname_bpf_spoof() {
-    patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
-  }
+# # Enable bpf spoofing (only if not already set via fk_feat)
+# if [ "$fk_feat_uname_bpf_spoof" -eq 0 ]; then
+#   patch_uname_bpf_spoof() {
+#     patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
+#   }
 
-  # if device is running HyperMINT ROM
-  if [ -f /vendor/build.prop ]; then
-    if grep -q -E 'MINT|mintdevice' /vendor/build.prop; then
-      ui_print "HyperMINT ROM detected, enabling bpf spoof..."
-      patch_uname_bpf_spoof
-    fi
+#   # if device is running HyperMINT ROM
+#   if [ -f /vendor/build.prop ]; then
+#     if grep -q -E 'MINT|mintdevice' /vendor/build.prop; then
+#       ui_print "HyperMINT ROM detected, enabling bpf spoof..."
+#       patch_uname_bpf_spoof
+#     fi
+#   fi
+# fi
+
+if [ -f /vendor/build.prop ]; then
+  if grep -q -E 'MINT|mintdevice' /vendor/build.prop; then
+    ui_print "HyperMINT ROM DETECTED, you might need the BpfSpoof patch!..."
   fi
 fi
 
