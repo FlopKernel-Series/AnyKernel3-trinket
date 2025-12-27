@@ -12,6 +12,7 @@ do.cleanup=1
 do.cleanuponabort=0
 device.name1=ginkgo
 device.name2=willow
+device.name3=laurel_sprout
 supported.versions=10.0-16.0
 supported.patchlevels=
 supported.vendorpatchlevels=
@@ -26,13 +27,44 @@ set_perm_recursive 0 0 750 750 $RAMDISK/init* $RAMDISK/sbin;
 } # end attributes
 
 # boot shell variables
-BLOCK=/dev/block/by-name/boot;
-IS_SLOT_DEVICE=0;
+BLOCK=boot;
+IS_SLOT_DEVICE=auto;
 RAMDISK_COMPRESSION=auto;
 PATCH_VBMETA_FLAG=auto;
 
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh;
+
+# Unified package support
+ak3_device="$(getprop ro.product.device 2>/dev/null)";
+[ "$ak3_device" ] || ak3_device="$(getprop ro.build.product 2>/dev/null)";
+[ "$ak3_device" ] || ak3_device="$(getprop ro.product.vendor.device 2>/dev/null)";
+ak3_device="$(echo "$ak3_device" | tr '[:upper:]' '[:lower:]')";
+
+case "$ak3_device" in
+  laurel_sprout)
+    ui_print "Selecting laurel_sprout DTB/DTBO...";
+    # Unified zips must include device-named artifacts
+    if [ -f "$AKHOME/dtb-laurel_sprout" ] && [ -f "$AKHOME/dtbo-laurel_sprout.img" ]; then
+      cp -f "$AKHOME/dtb-laurel_sprout" "$AKHOME/dtb";
+      cp -f "$AKHOME/dtbo-laurel_sprout.img" "$AKHOME/dtbo.img";
+    else
+      abort "laurel_sprout device detected but DTB/DTBO not present in zip. Aborting...";
+    fi;
+  ;;
+  ginkgo|willow)
+    ui_print "Selecting ginkgo/willow DTB/DTBO...";
+    if [ -f "$AKHOME/dtb-ginkgo" ] && [ -f "$AKHOME/dtbo-ginkgo.img" ]; then
+      cp -f "$AKHOME/dtb-ginkgo" "$AKHOME/dtb";
+      cp -f "$AKHOME/dtbo-ginkgo.img" "$AKHOME/dtbo.img";
+    else
+      abort "ginkgo/willow device detected but DTB/DTBO not present in zip. Aborting...";
+    fi;
+  ;;
+  *)
+    # Other devices: no selection
+    ;;
+esac;
 
 # boot install
 split_boot; # use split_boot to skip ramdisk unpack, e.g. for devices with init_boot ramdisk
