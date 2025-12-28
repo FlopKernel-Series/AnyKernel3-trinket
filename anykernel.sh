@@ -41,6 +41,78 @@ ak3_device="$(getprop ro.product.device 2>/dev/null)";
 [ "$ak3_device" ] || ak3_device="$(getprop ro.product.vendor.device 2>/dev/null)";
 ak3_device="$(echo "$ak3_device" | tr '[:upper:]' '[:lower:]')";
 
+# Device-specific tweaks
+case "$ak3_device" in
+  ginkgo|willow)
+    # Parse feature flags from /cache/fk_feat if present
+    cache_mounted=0;
+    if mountpoint -q /cache 2>/dev/null; then
+      cache_mounted=1;
+    else
+      if mount /cache 2>/dev/null; then
+        cache_mounted=1;
+      fi
+    fi
+
+    fk_feat_legacy_timestamp=0
+    if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
+      if grep -q "no_init_protection" /cache/fk_feat 2>/dev/null; then
+        ui_print "Reloaded feature: Kill init protection"
+        patch_cmdline "no_init_protection" "no_init_protection=1"
+      fi
+
+      if grep -q "legacy_timestamp_source" /cache/fk_feat 2>/dev/null; then
+        ui_print "Reloaded feature: Legacy Timestamp Source"
+        patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
+        fk_feat_legacy_timestamp=1
+      fi
+
+      if grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
+        ui_print "Reloaded feature: Linux version spoofing for BPF"
+        patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
+      fi
+
+      if grep -q "no_msm_perf_boost" /cache/fk_feat 2>/dev/null; then
+        ui_print "Reloaded feature: Nuke MSM Performance boosting"
+        patch_cmdline "no_msm_perf_boost" "no_msm_perf_boost=1"
+      fi
+
+      if grep -q "warm_reboot" /cache/fk_feat 2>/dev/null; then
+        ui_print "Reloaded feature: Forced warm reboot"
+        patch_cmdline "warm_reboot" "warm_reboot=1"
+      fi
+    fi
+
+    # HyperMINT detection (informational only)
+    if [ -f /vendor/build.prop ] && grep -q -E 'MINT|mintdevice' /vendor/build.prop; then
+      ui_print "HyperMINT ROM DETECTED, you might need the BpfSpoof patch!..."
+    fi
+
+    # If legacy timestamp wasn't forced by fk_feat, decide based on Android version
+    if [ "$fk_feat_legacy_timestamp" -eq 0 ]; then
+      android_ver=$(file_getprop /system/build.prop ro.build.version.release)
+      android_ver=${android_ver%%.*}
+      if [ "$android_ver" -le 11 ] 2>/dev/null; then
+        patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
+        ui_print "Legacy timestamp workaround enabled"
+      else
+        patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=0"
+        ui_print "Timestamp patch not needed"
+      fi
+    fi
+    ;;
+  laurel_sprout)
+    # Laurel-specific conservative tweaks
+    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
+    ui_print "Legacy timestamp workaround enabled"
+    patch_cmdline "no_kernel_dimming" "no_kernel_dimming=1"
+    ui_print "Disabling kernel dimming support (laurel_sprout)"
+    ;;
+  *)
+    # No device-specific tweaks
+    ;;
+esac
+
 case "$ak3_device" in
   laurel_sprout)
     ui_print "Selecting laurel_sprout DTB/DTBO...";
