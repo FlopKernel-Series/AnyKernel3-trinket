@@ -36,9 +36,9 @@ PATCH_VBMETA_FLAG=auto;
 . tools/ak3-core.sh;
 
 # Unified package support
-ak3_device="$(getprop ro.product.device 2>/dev/null)";
+ak3_device="$(getprop ro.product.vendor.device 2>/dev/null)";
+[ "$ak3_device" ] || ak3_device="$(getprop ro.product.device 2>/dev/null)";
 [ "$ak3_device" ] || ak3_device="$(getprop ro.build.product 2>/dev/null)";
-[ "$ak3_device" ] || ak3_device="$(getprop ro.product.vendor.device 2>/dev/null)";
 ak3_device="$(echo "$ak3_device" | tr '[:upper:]' '[:lower:]')";
 
 # Device-specific tweaks
