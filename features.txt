@@ -2,7 +2,9 @@ bool: no_init_protection | KillInitProtection | Kill Init protection
 
 bool: legacy_timestamp_source | LegacyTimestampSource | Legacy Timestamp
 
-bool: uname_bpf_spoof | BpfSpoof | Linux version spoofing for BPF
+int: uname_bpf_spoof | range: -1,127 | BpfSpoof | Linux version spoofing for BPF
+valof: uname_bpf_spoof | 1 | NetBpfOnly | Partial mode: spoof only for `netbpfload`
+valof: uname_bpf_spoof | 5 | FullSpoof | Full mode: spoof for `bpfloader`, `netbpfload`, `netd`, `uprobestats`
 
 bool: no_msm_perf_boost | MSMPerfNuke | Disable MSM Performance boosting
 
