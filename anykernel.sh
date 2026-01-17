@@ -65,10 +65,21 @@ check_bpf_spoofing() {
     return 0
   fi
 
-  oldIFS="$IFS"
+  # Evaluate all entries and choose the best match (most specific)
+  # Best = longest pattern length, tie -> earliest line number in target file, tie -> first config order
+  best_len=0
+  best_line_num=99999999
+  best_entry=""
+  best_action=""
+  best_mode=""
+  best_message=""
+  best_index=99999999
+
+  cfg_index=0
   newline="$(printf '\n')"
   IFS="$newline"
   for entry in $bpf_spoof_checks; do
+    cfg_index=$((cfg_index + 1))
     entry="$(echo "$entry" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     [ -z "$entry" ] && continue
     case "$entry" in \#*) continue ;; esac
@@ -78,68 +89,57 @@ check_bpf_spoofing() {
     mode="$(echo "$entry" | cut -d'|' -f4 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     message="$(echo "$entry" | cut -d'|' -f5- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
-    # Basic validation
     if [ -z "$scope" ] || [ -z "$pattern_raw" ] || [ -z "$action" ] || [ -z "$mode" ]; then
       feature_warn "Malformed bpf_spoof.conf entry (skipping): $entry"
       continue
     fi
 
-    # Determine pattern matching mode: default = fixed string (-F)
-    # supported prefixes: re: (ERE), ire: (ERE, case-insensitive), if: (fixed, case-insensitive)
     case "$pattern_raw" in
-      re:*)
-        pattern="${pattern_raw#re:}"
-        grep_opts="-E"
-        ;;
-      ire:*)
-        pattern="${pattern_raw#ire:}"
-        grep_opts="-Ei"
-        ;;
-      if:*)
-        pattern="${pattern_raw#if:}"
-        grep_opts="-Fi"
-        ;;
-      *)
-        pattern="$pattern_raw"
-        grep_opts="-F"
-        ;;
+      re:*) pattern="${pattern_raw#re:}"; grep_opts="-E" ;;
+      ire:*) pattern="${pattern_raw#ire:}"; grep_opts="-Ei" ;;
+      if:*) pattern="${pattern_raw#if:}"; grep_opts="-Fi" ;;
+      *) pattern="$pattern_raw"; grep_opts="-F" ;;
     esac
 
-    # Determine target files from scope
     scope_lc="$(echo "$scope" | tr '[:upper:]' '[:lower:]')"
-    targets=""
-    if [ "${scope#""}" != "$scope" ]; then
-      : # noop (not expected)
-    fi
-    if [ "${scope%""}" != "$scope" ] 2>/dev/null; then
-      : # noop (compat)
-    fi
-    case "$scope" in
+    case "$scope_lc" in
+      vendor) targets="/vendor/build.prop" ;;
+      system) targets="/system/build.prop" ;;
+      both) targets="/vendor/build.prop /system/build.prop" ;;
       /*) targets="$scope" ;;
-      *)
-      case "$scope_lc" in
-        vendor) targets="/vendor/build.prop" ;;
-        system) targets="/system/build.prop" ;;
-        both) targets="/vendor/build.prop /system/build.prop" ;;
-        *) targets="$scope" ;;
-      esac
+      *) targets="$scope" ;;
     esac
 
     for file_check in $targets; do
-      if [ -f "$file_check" ] && grep $grep_opts -q -- "$pattern" "$file_check" 2>/dev/null; then
-        feature_info "$message"
-        if [ "$action" = "auto" ]; then
-          feature_ok "Auto-enabling BpfSpoof (mode $mode)"
-          patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$mode"
-        else
-          feature_warn "You might need to enable BpfSpoof (recommended mode: $mode)"
+      if [ -f "$file_check" ]; then
+        match_info=$(grep $grep_opts -n -- "$pattern" "$file_check" 2>/dev/null | head -n1)
+        if [ -n "$match_info" ]; then
+          match_line=$(echo "$match_info" | cut -d: -f1)
+          plen=$(printf "%s" "$pattern" | wc -c)
+          if [ "$plen" -gt "$best_len" ] || { [ "$plen" -eq "$best_len" ] && [ "$match_line" -lt "$best_line_num" ]; } || { [ "$plen" -eq "$best_len" ] && [ "$match_line" -eq "$best_line_num" ] && [ "$cfg_index" -lt "$best_index" ] 2>/dev/null; }; then
+            best_len=$plen
+            best_line_num=$match_line
+            best_entry="$entry"
+            best_action="$action"
+            best_mode="$mode"
+            best_message="$message"
+            best_index=$cfg_index
+          fi
         fi
-        IFS="$oldIFS"
-        return 0
       fi
     done
   done
   IFS="$oldIFS"
+
+  if [ -n "$best_entry" ]; then
+    feature_info "$best_message"
+    if [ "$best_action" = "auto" ]; then
+      feature_ok "Auto-enabling BpfSpoof (mode $best_mode)"
+      patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$best_mode"
+    else
+      feature_warn "You might need to enable BpfSpoof (recommended mode: $best_mode)"
+    fi
+  fi
 }
 
 
