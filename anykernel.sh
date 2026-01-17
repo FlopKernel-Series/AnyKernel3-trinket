@@ -41,6 +41,103 @@ ak3_device="$(getprop ro.product.vendor.device 2>/dev/null)";
 [ "$ak3_device" ] || ak3_device="$(getprop ro.build.product 2>/dev/null)";
 ak3_device="$(echo "$ak3_device" | tr '[:upper:]' '[:lower:]')";
 
+# Helper: detect and optionally auto-enable BPF spoofing
+check_bpf_spoofing() {
+  # Read checks from config:
+  # scope|pattern|action|mode|detect_message
+  # scope: vendor | system | both | or an explicit path starting with '/'
+  # action: warn | auto
+  if [ -f "$AKHOME/bpf_spoof.conf" ]; then
+    bpf_spoof_checks="$(cat "$AKHOME/bpf_spoof.conf")"
+  else
+    # No config -> skip detection
+    return 0
+  fi
+
+  # Don't override if user already set uname_bpf_spoof
+  if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
+    ui_print "BpfSpoof already configured in /cache/fk_feat, skipping detection."
+    return 0
+  fi
+
+  oldIFS="$IFS"
+  newline="$(printf '\n')"
+  IFS="$newline"
+  for entry in $bpf_spoof_checks; do
+    entry="$(echo "$entry" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [ -z "$entry" ] && continue
+    case "$entry" in \#*) continue ;; esac
+    scope="$(echo "$entry" | cut -d'|' -f1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    pattern_raw="$(echo "$entry" | cut -d'|' -f2 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    action="$(echo "$entry" | cut -d'|' -f3 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    mode="$(echo "$entry" | cut -d'|' -f4 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    message="$(echo "$entry" | cut -d'|' -f5- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
+    # Basic validation
+    if [ -z "$scope" ] || [ -z "$pattern_raw" ] || [ -z "$action" ] || [ -z "$mode" ]; then
+      ui_print "Malformed bpf_spoof.conf entry (skipping): $entry"
+      continue
+    fi
+
+    # Determine pattern matching mode: default = fixed string (-F)
+    # supported prefixes: re: (ERE), ire: (ERE, case-insensitive), if: (fixed, case-insensitive)
+    case "$pattern_raw" in
+      re:*)
+        pattern="${pattern_raw#re:}"
+        grep_opts="-E"
+        ;;
+      ire:*)
+        pattern="${pattern_raw#ire:}"
+        grep_opts="-Ei"
+        ;;
+      if:*)
+        pattern="${pattern_raw#if:}"
+        grep_opts="-Fi"
+        ;;
+      *)
+        pattern="$pattern_raw"
+        grep_opts="-F"
+        ;;
+    esac
+
+    # Determine target files from scope
+    scope_lc="$(echo "$scope" | tr '[:upper:]' '[:lower:]')"
+    targets=""
+    if [ "${scope#""}" != "$scope" ]; then
+      : # noop (not expected)
+    fi
+    if [ "${scope%""}" != "$scope" ] 2>/dev/null; then
+      : # noop (compat)
+    fi
+    case "$scope" in
+      /*) targets="$scope" ;;
+      *)
+      case "$scope_lc" in
+        vendor) targets="/vendor/build.prop" ;;
+        system) targets="/system/build.prop" ;;
+        both) targets="/vendor/build.prop /system/build.prop" ;;
+        *) targets="$scope" ;;
+      esac
+    esac
+
+    for file_check in $targets; do
+      if [ -f "$file_check" ] && grep $grep_opts -q -- "$pattern" "$file_check" 2>/dev/null; then
+        ui_print "$message"
+        if [ "$action" = "auto" ]; then
+          ui_print "Auto-enabling BpfSpoof (mode $mode)"
+          patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$mode"
+        else
+          ui_print "You might need to enable BpfSpoof (recommended mode: $mode)"
+        fi
+        IFS="$oldIFS"
+        return 0
+      fi
+    done
+  done
+  IFS="$oldIFS"
+}
+
+
 # Device-specific tweaks
 case "$ak3_device" in
   ginkgo|willow)
@@ -87,10 +184,8 @@ case "$ak3_device" in
       fi
     fi
 
-    # HyperMINT detection (informational only)
-    if [ -f /vendor/build.prop ] && grep -q -E 'MINT|mintdevice' /vendor/build.prop; then
-      ui_print "HyperMINT ROM DETECTED, you might need the BpfSpoof patch!..."
-    fi
+    # Run BPF spoof detection
+    check_bpf_spoofing
 
     # If legacy timestamp wasn't forced by fk_feat, decide based on Android version
     if [ "$fk_feat_legacy_timestamp" -eq 0 ]; then
