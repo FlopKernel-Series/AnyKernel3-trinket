@@ -157,60 +157,32 @@ case "$ak3_device" in
     fi
 
     fk_feat_legacy_timestamp=0
-    if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
-      if grep -q "no_init_protection" /cache/fk_feat 2>/dev/null; then
-        feature_ok "Reloaded feature: Kill init protection"
-        patch_cmdline "no_init_protection" "no_init_protection=1"
-      fi
-
-      if grep -q "legacy_timestamp_source" /cache/fk_feat 2>/dev/null; then
-        feature_ok "Reloaded feature: Legacy Timestamp Source"
-        patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-        fk_feat_legacy_timestamp=1
-      fi
-
-      if grep -q "uname_bpf_spoof=" /cache/fk_feat 2>/dev/null; then
-        val=$(grep -o 'uname_bpf_spoof=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
-        feature_ok "Reloaded feature: Linux version spoofing for BPF (mode $val)"
-        patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$val"
-      elif grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
-        feature_ok "Reloaded feature: Linux version spoofing for BPF (default)"
-        patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
-      fi
-
-      if grep -q "no_msm_perf_boost" /cache/fk_feat 2>/dev/null; then
-        feature_ok "Reloaded feature: Nuke MSM Performance boosting"
-        patch_cmdline "no_msm_perf_boost" "no_msm_perf_boost=1"
-      fi
-
-      if grep -q "warm_reboot" /cache/fk_feat 2>/dev/null; then
-        feature_ok "Reloaded feature: Forced warm reboot"
-        patch_cmdline "warm_reboot" "warm_reboot=1"
-      fi
-    fi
 
     # Run BPF spoof detection
     check_bpf_spoofing
 
-    # If legacy timestamp wasn't forced by fk_feat, decide based on Android version
-    if [ "$fk_feat_legacy_timestamp" -eq 0 ]; then
-      android_ver=$(file_getprop /system/build.prop ro.build.version.release)
-      android_ver=${android_ver%%.*}
-      if [ "$android_ver" -le 11 ] 2>/dev/null; then
-        patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-        feature_ok "Legacy timestamp workaround enabled"
-      else
-        patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=0"
-        feature_info "Timestamp patch not needed"
-      fi
-    fi
+
     ;;
   laurel_sprout)
     # Laurel-specific conservative tweaks
-    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-    feature_ok "Legacy timestamp workaround enabled"
+    # Respect /cache/fk_feat if user explicitly sets or disables legacy_timestamp_source
+    if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
+      if grep -q "legacy_timestamp_source=" /cache/fk_feat 2>/dev/null; then
+        val=$(grep -o 'legacy_timestamp_source=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
+        patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=$val"
+        feature_ok "Reloaded feature: Legacy Timestamp Source (mode $val)"
+      else
+        patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
+        feature_ok "Legacy timestamp workaround enabled (device default)"
+      fi
+    else
+      patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
+      feature_ok "Legacy timestamp workaround enabled (device default)"
+    fi
+
     patch_cmdline "no_kernel_dimming" "no_kernel_dimming=1"
     feature_ok "Disabling kernel dimming support (laurel_sprout)"
+    timestamp_handled=1
     ;;
   *)
     # No device-specific tweaks
@@ -290,34 +262,35 @@ fk_feat_legacy_timestamp=0
 
 if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
   if grep -q "no_init_protection" /cache/fk_feat 2>/dev/null; then
-    ui_print "Reloaded feature: Kill init protection"
+    feature_ok "Reloaded feature: Kill init protection"
     patch_cmdline "no_init_protection" "no_init_protection=1"
   fi
 
-  if grep -q "legacy_timestamp_source" /cache/fk_feat 2>/dev/null; then
-    ui_print "Reloaded feature: Legacy Timestamp Source"
-    patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
+if grep -q "legacy_timestamp_source=" /cache/fk_feat 2>/dev/null; then
+        val=$(grep -o 'legacy_timestamp_source=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
+        feature_ok "Reloaded feature: Legacy Timestamp Source (mode $val)"
+        patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=$val"
     fk_feat_legacy_timestamp=1
   fi
 
   if grep -q "uname_bpf_spoof=" /cache/fk_feat 2>/dev/null; then
     val=$(grep -o 'uname_bpf_spoof=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
-    ui_print "Reloaded feature: Linux version spoofing for BPF (mode $val)"
+    feature_ok "Reloaded feature: Linux version spoofing for BPF (mode $val)"
     patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$val"
     # fk_feat_uname_bpf_spoof=1
   elif grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
-    ui_print "Reloaded feature: Linux version spoofing for BPF (default)"
+    feature_ok "Reloaded feature: Linux version spoofing for BPF (default)"
     patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
     # fk_feat_uname_bpf_spoof=1
   fi
 
   if grep -q "no_msm_perf_boost" /cache/fk_feat 2>/dev/null; then
-    ui_print "Reloaded feature: Nuke MSM Performance boosting"
+    feature_ok "Reloaded feature: Nuke MSM Performance boosting"
     patch_cmdline "no_msm_perf_boost" "no_msm_perf_boost=1"
   fi
 
   if grep -q "warm_reboot" /cache/fk_feat 2>/dev/null; then
-    ui_print "Reloaded feature: Forced warm reboot"
+    feature_ok "Reloaded feature: Forced warm reboot"
     patch_cmdline "warm_reboot" "warm_reboot=1"
   fi
 fi
@@ -352,7 +325,8 @@ else
 fi
 
 # Get Android version from build.prop and set legacy_timestamp_source (only if not already set via fk_feat)
-if [ "$fk_feat_legacy_timestamp" -eq 0 ]; then
+# Skip if a device-specific handler already performed this
+if [ "${timestamp_handled:-0}" -eq 0 ] && [ "$fk_feat_legacy_timestamp" -eq 0 ]; then
   android_ver=$(file_getprop /system/build.prop ro.build.version.release)
 
   # Convert to integer (strip potential decimal points)
