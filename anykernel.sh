@@ -67,8 +67,12 @@ case "$ak3_device" in
         fk_feat_legacy_timestamp=1
       fi
 
-      if grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
-        ui_print "Reloaded feature: Linux version spoofing for BPF"
+      if grep -q "uname_bpf_spoof=" /cache/fk_feat 2>/dev/null; then
+        val=$(grep -o 'uname_bpf_spoof=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
+        ui_print "Reloaded feature: Linux version spoofing for BPF (mode $val)"
+        patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$val"
+      elif grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
+        ui_print "Reloaded feature: Linux version spoofing for BPF (default)"
         patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
       fi
 
@@ -196,8 +200,13 @@ if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
     fk_feat_legacy_timestamp=1
   fi
 
-  if grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
-    ui_print "Reloaded feature: Linux version spoofing for BPF"
+  if grep -q "uname_bpf_spoof=" /cache/fk_feat 2>/dev/null; then
+    val=$(grep -o 'uname_bpf_spoof=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
+    ui_print "Reloaded feature: Linux version spoofing for BPF (mode $val)"
+    patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$val"
+    # fk_feat_uname_bpf_spoof=1
+  elif grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
+    ui_print "Reloaded feature: Linux version spoofing for BPF (default)"
     patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
     # fk_feat_uname_bpf_spoof=1
   fi
