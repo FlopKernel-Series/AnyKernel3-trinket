@@ -41,6 +41,11 @@ ak3_device="$(getprop ro.product.vendor.device 2>/dev/null)";
 [ "$ak3_device" ] || ak3_device="$(getprop ro.build.product 2>/dev/null)";
 ak3_device="$(echo "$ak3_device" | tr '[:upper:]' '[:lower:]')";
 
+# Helper print helpers for feature-related messages
+feature_ok() { ui_print "=> $*"; }
+feature_info() { ui_print "-> $*"; }
+feature_warn() { ui_print "!! $*"; }
+
 # Helper: detect and optionally auto-enable BPF spoofing
 check_bpf_spoofing() {
   # Read checks from config:
@@ -56,7 +61,7 @@ check_bpf_spoofing() {
 
   # Don't override if user already set uname_bpf_spoof
   if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
-    ui_print "BpfSpoof already configured in /cache/fk_feat, skipping detection."
+    feature_info "BpfSpoof already configured in /cache/fk_feat, skipping detection."
     return 0
   fi
 
@@ -75,7 +80,7 @@ check_bpf_spoofing() {
 
     # Basic validation
     if [ -z "$scope" ] || [ -z "$pattern_raw" ] || [ -z "$action" ] || [ -z "$mode" ]; then
-      ui_print "Malformed bpf_spoof.conf entry (skipping): $entry"
+      feature_warn "Malformed bpf_spoof.conf entry (skipping): $entry"
       continue
     fi
 
@@ -122,12 +127,12 @@ check_bpf_spoofing() {
 
     for file_check in $targets; do
       if [ -f "$file_check" ] && grep $grep_opts -q -- "$pattern" "$file_check" 2>/dev/null; then
-        ui_print "$message"
+        feature_info "$message"
         if [ "$action" = "auto" ]; then
-          ui_print "Auto-enabling BpfSpoof (mode $mode)"
+          feature_ok "Auto-enabling BpfSpoof (mode $mode)"
           patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$mode"
         else
-          ui_print "You might need to enable BpfSpoof (recommended mode: $mode)"
+          feature_warn "You might need to enable BpfSpoof (recommended mode: $mode)"
         fi
         IFS="$oldIFS"
         return 0
@@ -154,32 +159,32 @@ case "$ak3_device" in
     fk_feat_legacy_timestamp=0
     if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
       if grep -q "no_init_protection" /cache/fk_feat 2>/dev/null; then
-        ui_print "Reloaded feature: Kill init protection"
+        feature_ok "Reloaded feature: Kill init protection"
         patch_cmdline "no_init_protection" "no_init_protection=1"
       fi
 
       if grep -q "legacy_timestamp_source" /cache/fk_feat 2>/dev/null; then
-        ui_print "Reloaded feature: Legacy Timestamp Source"
+        feature_ok "Reloaded feature: Legacy Timestamp Source"
         patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
         fk_feat_legacy_timestamp=1
       fi
 
       if grep -q "uname_bpf_spoof=" /cache/fk_feat 2>/dev/null; then
         val=$(grep -o 'uname_bpf_spoof=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
-        ui_print "Reloaded feature: Linux version spoofing for BPF (mode $val)"
+        feature_ok "Reloaded feature: Linux version spoofing for BPF (mode $val)"
         patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$val"
       elif grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
-        ui_print "Reloaded feature: Linux version spoofing for BPF (default)"
+        feature_ok "Reloaded feature: Linux version spoofing for BPF (default)"
         patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
       fi
 
       if grep -q "no_msm_perf_boost" /cache/fk_feat 2>/dev/null; then
-        ui_print "Reloaded feature: Nuke MSM Performance boosting"
+        feature_ok "Reloaded feature: Nuke MSM Performance boosting"
         patch_cmdline "no_msm_perf_boost" "no_msm_perf_boost=1"
       fi
 
       if grep -q "warm_reboot" /cache/fk_feat 2>/dev/null; then
-        ui_print "Reloaded feature: Forced warm reboot"
+        feature_ok "Reloaded feature: Forced warm reboot"
         patch_cmdline "warm_reboot" "warm_reboot=1"
       fi
     fi
@@ -193,19 +198,19 @@ case "$ak3_device" in
       android_ver=${android_ver%%.*}
       if [ "$android_ver" -le 11 ] 2>/dev/null; then
         patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-        ui_print "Legacy timestamp workaround enabled"
+        feature_ok "Legacy timestamp workaround enabled"
       else
         patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=0"
-        ui_print "Timestamp patch not needed"
+        feature_info "Timestamp patch not needed"
       fi
     fi
     ;;
   laurel_sprout)
     # Laurel-specific conservative tweaks
     patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-    ui_print "Legacy timestamp workaround enabled"
+    feature_ok "Legacy timestamp workaround enabled"
     patch_cmdline "no_kernel_dimming" "no_kernel_dimming=1"
-    ui_print "Disabling kernel dimming support (laurel_sprout)"
+    feature_ok "Disabling kernel dimming support (laurel_sprout)"
     ;;
   *)
     # No device-specific tweaks
@@ -260,13 +265,13 @@ fi
 # Check for the presence of "first_stage_mount" in /vendor/etc/fstab only for /system or /vendor
 if [ $do_patch -eq 1 ]; then
 	if grep "first_stage_mount" /vendor/etc/fstab.qcom | grep -E -q '(/system|/vendor)'; then
-		ui_print "Two-stage init ROM detected, patching cmdline..."
+		feature_ok "Two-stage init ROM detected, patching cmdline..."
 		patch_cmdline "tsinit" "tsinit"
 	else
-		ui_print "Legacy init ROM detected, no need to patch"
+		feature_info "Legacy init ROM detected, no need to patch"
 	fi
 else
-	ui_print "Skipping cmdline patch because vendor could not be mounted!"
+	feature_warn "Skipping cmdline patch because vendor could not be mounted!"
 fi
 
 # Check if /cache is mounted, try to mount if not
@@ -340,9 +345,9 @@ fi
 
 # Check for IR HAL type
 if [ -f /vendor/bin/hw/android.hardware.ir-service.lineage ]; then
-	ui_print "LIRC-based IR HAL detected"
+	feature_info "LIRC-based IR HAL detected"
 else
-	ui_print "Legacy spidev IR HAL detected"
+	feature_ok "Legacy spidev IR HAL detected"
 	patch_cmdline "legacy_ir_hal" "legacy_ir_hal=1"
 fi
 
@@ -356,10 +361,10 @@ if [ "$fk_feat_legacy_timestamp" -eq 0 ]; then
   # Check if Android version is 11 or lower
   if [ "$android_ver" -le 11 ] 2>/dev/null; then
     patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-    ui_print "Legacy timestamp workaround enabled"
+    feature_ok "Legacy timestamp workaround enabled"
   else
     patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=0"
-    ui_print "Timestamp patch not needed"
+    feature_info "Timestamp patch not needed"
   fi
 fi
 
