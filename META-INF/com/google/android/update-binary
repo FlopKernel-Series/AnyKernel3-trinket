@@ -539,7 +539,13 @@ fi;
 OLD_PATH="$PATH";
 export PATH="$AKHOME/tools:$AKHOME/bin:$PATH";
 
-if [ -f banner ]; then
+if $BOOTMODE && [ -f banner ]; then
+  ui_printfile banner;
+  ui_print " " " ";
+elif [ -f banner_recovery ]; then
+  ui_printfile banner_recovery;
+  ui_print " " " ";
+elif [ -f banner ]; then
   ui_printfile banner;
   ui_print " " " ";
 fi;
