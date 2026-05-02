@@ -41,10 +41,23 @@ ak3_device="$(getprop ro.product.vendor.device 2>/dev/null)";
 [ "$ak3_device" ] || ak3_device="$(getprop ro.build.product 2>/dev/null)";
 ak3_device="$(echo "$ak3_device" | tr '[:upper:]' '[:lower:]')";
 
-# Helper print helpers for feature-related messages
-feature_ok() { ui_print "=> $*"; }
-feature_info() { ui_print "-> $*"; }
-feature_warn() { ui_print "!! $*"; }
+# Helper print helpers for readable installer logs
+printed_blank=0
+print_blank_once() {
+  if [ "$printed_blank" -eq 0 ]; then
+    ui_print ""
+    printed_blank=1
+  fi
+}
+log_rom()  { print_blank_once; ui_print "[ROM] $1"; }
+log_feat() { print_blank_once; ui_print "[FK]  $1"; }
+log_part() { print_blank_once; ui_print "[DTB] $1"; }
+log_warn() { print_blank_once; ui_print "[!]   $1"; }
+
+# Keep legacy aliases used throughout the script
+feature_ok()   { log_feat "$1"; }
+feature_info() { log_feat "$1"; }
+feature_warn() { log_warn "$1"; }
 
 # Helper: detect and optionally auto-enable BPF spoofing
 check_bpf_spoofing() {
@@ -61,7 +74,7 @@ check_bpf_spoofing() {
 
   # Don't override if user already set uname_bpf_spoof
   if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
-    feature_info "BpfSpoof already configured in /cache/fk_feat, skipping detection."
+    log_feat "BPF spoof: already set in fk_feat, skipping detection"
     return 0
   fi
 
@@ -90,7 +103,7 @@ check_bpf_spoofing() {
     message="$(echo "$entry" | cut -d'|' -f5- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
     if [ -z "$scope" ] || [ -z "$pattern_raw" ] || [ -z "$action" ] || [ -z "$mode" ]; then
-      feature_warn "Malformed bpf_spoof.conf entry (skipping): $entry"
+      log_warn "BPF spoof: malformed config entry, skipping: $entry"
       continue
     fi
 
@@ -132,12 +145,12 @@ check_bpf_spoofing() {
   IFS="$oldIFS"
 
   if [ -n "$best_entry" ]; then
-    feature_info "$best_message"
+    log_feat "$best_message"
     if [ "$best_action" = "auto" ]; then
-      feature_ok "Auto-enabling BpfSpoof (mode $best_mode)"
+      log_feat "BPF spoof: auto-enabled (mode $best_mode)"
       patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$best_mode"
     else
-      feature_warn "You might need to enable BpfSpoof (recommended mode: $best_mode)"
+      log_warn "BPF spoof: manual enable recommended (mode $best_mode)"
     fi
   fi
 }
@@ -170,18 +183,18 @@ case "$ak3_device" in
       if grep -q "legacy_timestamp_source=" /cache/fk_feat 2>/dev/null; then
         val=$(grep -o 'legacy_timestamp_source=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
         patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=$val"
-        feature_ok "Reloaded feature: Legacy Timestamp Source (mode $val)"
+        log_feat "Legacy timestamp source: mode $val"
       else
         patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-        feature_ok "Legacy timestamp workaround enabled (device default)"
+        log_feat "Legacy timestamp source: enabled (device default)"
       fi
     else
       patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-      feature_ok "Legacy timestamp workaround enabled (device default)"
+      log_feat "Legacy timestamp source: enabled (device default)"
     fi
 
     patch_cmdline "no_kernel_dimming" "no_kernel_dimming=1"
-    feature_ok "Disabling kernel dimming support (laurel_sprout)"
+    log_feat "Kernel dimming: disabled (laurel_sprout)"
     timestamp_handled=1
     ;;
   *)
@@ -191,7 +204,7 @@ esac
 
 case "$ak3_device" in
   laurel_sprout)
-    ui_print "Selecting laurel_sprout DTB/DTBO...";
+    log_part "Selecting laurel_sprout DTB/DTBO";
     # Unified zips must include device-named artifacts
     if [ -f "$AKHOME/dtb-laurel_sprout" ] && [ -f "$AKHOME/dtbo-laurel_sprout.img" ]; then
       cp -f "$AKHOME/dtb-laurel_sprout" "$AKHOME/dtb";
@@ -201,7 +214,7 @@ case "$ak3_device" in
     fi;
   ;;
   ginkgo|willow)
-    ui_print "Selecting ginkgo/willow DTB/DTBO...";
+    log_part "Selecting ginkgo/willow DTB/DTBO";
     if [ -f "$AKHOME/dtb-ginkgo" ] && [ -f "$AKHOME/dtbo-ginkgo.img" ]; then
       cp -f "$AKHOME/dtb-ginkgo" "$AKHOME/dtb";
       cp -f "$AKHOME/dtbo-ginkgo.img" "$AKHOME/dtbo.img";
@@ -237,13 +250,13 @@ fi
 # Check for the presence of "first_stage_mount" in /vendor/etc/fstab only for /system or /vendor
 if [ $do_patch -eq 1 ]; then
 	if grep "first_stage_mount" /vendor/etc/fstab.qcom | grep -E -q '(/system|/vendor)'; then
-		feature_ok "Two-stage init ROM detected, patching cmdline..."
+		log_rom "Init mode: two-stage (patching cmdline)"
 		patch_cmdline "tsinit" "tsinit"
 	else
-		feature_info "Legacy init ROM detected, no need to patch"
+		log_rom "Init mode: legacy (no patch needed)"
 	fi
 else
-	feature_warn "Skipping cmdline patch because vendor could not be mounted!"
+	log_warn "Init mode: skipping cmdline patch, vendor not mounted"
 fi
 
 # Check if /cache is mounted, try to mount if not
@@ -262,35 +275,35 @@ fk_feat_legacy_timestamp=0
 
 if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
   if grep -q "no_init_protection" /cache/fk_feat 2>/dev/null; then
-    feature_ok "Reloaded feature: Kill init protection"
+    log_feat "Init protection: disabled"
     patch_cmdline "no_init_protection" "no_init_protection=1"
   fi
 
 if grep -q "legacy_timestamp_source=" /cache/fk_feat 2>/dev/null; then
         val=$(grep -o 'legacy_timestamp_source=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
-        feature_ok "Reloaded feature: Legacy Timestamp Source (mode $val)"
+        log_feat "Legacy timestamp source: mode $val"
         patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=$val"
     fk_feat_legacy_timestamp=1
   fi
 
   if grep -q "uname_bpf_spoof=" /cache/fk_feat 2>/dev/null; then
     val=$(grep -o 'uname_bpf_spoof=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
-    feature_ok "Reloaded feature: Linux version spoofing for BPF (mode $val)"
+    log_feat "BPF spoof: mode $val"
     patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$val"
     # fk_feat_uname_bpf_spoof=1
   elif grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
-    feature_ok "Reloaded feature: Linux version spoofing for BPF (default)"
+    log_feat "BPF spoof: mode 1"
     patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
     # fk_feat_uname_bpf_spoof=1
   fi
 
   if grep -q "no_msm_perf_boost" /cache/fk_feat 2>/dev/null; then
-    feature_ok "Reloaded feature: Nuke MSM Performance boosting"
+    log_feat "MSM performance boost: disabled"
     patch_cmdline "no_msm_perf_boost" "no_msm_perf_boost=1"
   fi
 
   if grep -q "warm_reboot" /cache/fk_feat 2>/dev/null; then
-    feature_ok "Reloaded feature: Forced warm reboot"
+    log_feat "Warm reboot: forced"
     patch_cmdline "warm_reboot" "warm_reboot=1"
   fi
 fi
@@ -312,15 +325,15 @@ fi
 
 if [ -f /vendor/build.prop ]; then
   if grep -q -E 'MINT|mintdevice' /vendor/build.prop; then
-    ui_print "HyperMINT ROM DETECTED, you might need the BpfSpoof patch!..."
+    log_warn "BPF spoof: HyperMINT detected, manual enable may be required"
   fi
 fi
 
 # Check for IR HAL type
 if [ -f /vendor/bin/hw/android.hardware.ir-service.lineage ]; then
-	feature_info "LIRC-based IR HAL detected"
+	log_feat "IR HAL: LIRC-based"
 else
-	feature_ok "Legacy spidev IR HAL detected"
+	log_feat "IR HAL: legacy spidev"
 	patch_cmdline "legacy_ir_hal" "legacy_ir_hal=1"
 fi
 
@@ -335,10 +348,10 @@ if [ "${timestamp_handled:-0}" -eq 0 ] && [ "$fk_feat_legacy_timestamp" -eq 0 ];
   # Check if Android version is 11 or lower
   if [ "$android_ver" -le 11 ] 2>/dev/null; then
     patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=1"
-    feature_ok "Legacy timestamp workaround enabled"
+    log_feat "Legacy timestamp source: enabled"
   else
     patch_cmdline "legacy_timestamp_source" "legacy_timestamp_source=0"
-    feature_info "Timestamp patch not needed"
+    log_feat "Legacy timestamp source: not needed"
   fi
 fi
 
@@ -405,4 +418,3 @@ flash_dtbo;
 
 #write_boot; # use flash_boot to skip ramdisk repack, e.g. for dtb on devices with hdr v4 but no vendor_kernel_boot
 ## end vendor_boot install
-
