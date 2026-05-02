@@ -539,14 +539,16 @@ fi;
 OLD_PATH="$PATH";
 export PATH="$AKHOME/tools:$AKHOME/bin:$PATH";
 
-if $BOOTMODE && [ -f banner ]; then
-  ui_printfile banner;
-  ui_print " " " ";
-elif [ -f banner_recovery ]; then
-  ui_printfile banner_recovery;
-  ui_print " " " ";
-elif [ -f banner ]; then
-  ui_printfile banner;
+if [ -f banner ] || [ -f banner_recovery ]; then
+  _is_android=false;
+  $BOOTMODE && [ -z "$(getprop ro.twrp.version 2>/dev/null)" ] && [ -z "$(getprop ro.orangefox.version 2>/dev/null)" ] && _is_android=true;
+  if $_is_android && [ -f banner ]; then
+    ui_printfile banner;
+  elif [ -f banner_recovery ]; then
+    ui_printfile banner_recovery;
+  else
+    ui_printfile banner;
+  fi;
   ui_print " " " ";
 fi;
 
