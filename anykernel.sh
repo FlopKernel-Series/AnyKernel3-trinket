@@ -36,9 +36,16 @@ PATCH_VBMETA_FLAG=auto;
 . tools/ak3-core.sh;
 
 # Unified package support
-ak3_device="$(getprop ro.product.vendor.device 2>/dev/null)";
-[ "$ak3_device" ] || ak3_device="$(getprop ro.product.device 2>/dev/null)";
-[ "$ak3_device" ] || ak3_device="$(getprop ro.build.product 2>/dev/null)";
+ak3_device="$(getprop ro.product.vendor.device 2>/dev/null | tr -d '\r \n')";
+[ -z "$ak3_device" ] && ak3_device="$(getprop ro.product.device 2>/dev/null | tr -d '\r \n')";
+[ -z "$ak3_device" ] && ak3_device="$(getprop ro.build.product 2>/dev/null | tr -d '\r \n')";
+if [ -z "$ak3_device" ]; then
+  ak3_device="$(file_getprop /default.prop ro.product.vendor.device 2>/dev/null | tr -d '\r \n')";
+  [ -z "$ak3_device" ] && ak3_device="$(file_getprop /default.prop ro.product.device 2>/dev/null | tr -d '\r \n')";
+  [ -z "$ak3_device" ] && ak3_device="$(file_getprop /system/build.prop ro.product.vendor.device 2>/dev/null | tr -d '\r \n')";
+  [ -z "$ak3_device" ] && ak3_device="$(file_getprop /system/build.prop ro.product.device 2>/dev/null | tr -d '\r \n')";
+  [ -z "$ak3_device" ] && ak3_device="$(file_getprop /vendor/build.prop ro.product.vendor.device 2>/dev/null | tr -d '\r \n')";
+fi
 ak3_device="$(echo "$ak3_device" | tr '[:upper:]' '[:lower:]')";
 
 # Helper print helpers for readable installer logs
@@ -158,7 +165,7 @@ check_bpf_spoofing() {
 
 # Device-specific tweaks
 case "$ak3_device" in
-  ginkgo|willow)
+  *ginkgo*|*willow*)
     # Parse feature flags from /cache/fk_feat if present
     cache_mounted=0;
     if mountpoint -q /cache 2>/dev/null; then
@@ -176,7 +183,7 @@ case "$ak3_device" in
 
 
     ;;
-  laurel_sprout)
+  *laurel_sprout*)
     # Laurel-specific conservative tweaks
     # Respect /cache/fk_feat if user explicitly sets or disables legacy_timestamp_source
     if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
@@ -203,7 +210,7 @@ case "$ak3_device" in
 esac
 
 case "$ak3_device" in
-  laurel_sprout)
+  *laurel_sprout*)
     log_part "Selecting laurel_sprout DTB/DTBO";
     # Unified zips must include device-named artifacts
     if [ -f "$AKHOME/dtb-laurel_sprout" ] && [ -f "$AKHOME/dtbo-laurel_sprout.img" ]; then
@@ -213,7 +220,7 @@ case "$ak3_device" in
       abort "laurel_sprout device detected but DTB/DTBO not present in zip. Aborting...";
     fi;
   ;;
-  ginkgo|willow)
+  *ginkgo*|*willow*)
     log_part "Selecting ginkgo/willow DTB/DTBO";
     if [ -f "$AKHOME/dtb-ginkgo" ] && [ -f "$AKHOME/dtbo-ginkgo.img" ]; then
       cp -f "$AKHOME/dtb-ginkgo" "$AKHOME/dtb";
