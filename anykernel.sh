@@ -199,9 +199,6 @@ case "$ak3_device" in
 
     fk_feat_legacy_timestamp=0
 
-    # Run BPF spoof detection
-    check_bpf_spoofing
-
 
     ;;
   *laurel_sprout*)
@@ -274,6 +271,9 @@ if [ ! -e /vendor/etc/fstab.qcom ]; then
 		fi
 	fi
 fi
+
+# Run BPF spoof detection after vendor is mounted (or confirmed unmountable)
+check_bpf_spoofing
 
 # Check for the presence of "first_stage_mount" in /vendor/etc/fstab only for /system or /vendor
 if [ $do_patch -eq 1 ]; then
@@ -350,12 +350,6 @@ fi
 #     fi
 #   fi
 # fi
-
-if [ -f /vendor/build.prop ]; then
-  if grep -q -E 'MINT|mintdevice' /vendor/build.prop; then
-    log_warn "BPF spoof: HyperMINT detected, manual enable may be required"
-  fi
-fi
 
 # Check for IR HAL type
 if [ -f /vendor/bin/hw/android.hardware.ir-service.lineage ]; then
