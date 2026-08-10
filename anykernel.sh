@@ -85,15 +85,20 @@ check_bpf_spoofing() {
     return 0
   fi
 
-  # Make sure /system is mounted before system-scoped checks
+  # Make sure /system and /vendor are mounted before scoped checks
   if [ ! -f /system/build.prop ] && [ ! -f /system/system/build.prop ]; then
     if ! mount /system 2>/dev/null; then
       mount /dev/block/by-name/system /system 2>/dev/null
     fi
   fi
+  if [ ! -f /vendor/build.prop ]; then
+    if ! mount /vendor 2>/dev/null; then
+      mount /dev/block/by-name/vendor /vendor 2>/dev/null
+    fi
+  fi
 
   # Evaluate all entries and choose the best match (most specific)
-  # Best = longest pattern length, tie -> earliest line number in target file, tie -> first config order
+  # Best = longest pattern length, tie -> auto over warn, tie -> earliest line number in target file, tie -> first config order
   best_len=0
   best_line_num=99999999
   best_entry=""
@@ -103,7 +108,9 @@ check_bpf_spoofing() {
   best_index=99999999
 
   cfg_index=0
-  newline="$(printf '\n')"
+  oldIFS="$IFS"
+  newline="$(printf '\n.')"
+  newline="${newline%.}"
   IFS="$newline"
   for entry in $bpf_spoof_checks; do
     cfg_index=$((cfg_index + 1))
@@ -131,19 +138,26 @@ check_bpf_spoofing() {
     scope_lc="$(echo "$scope" | tr '[:upper:]' '[:lower:]')"
     case "$scope_lc" in
       vendor) targets="/vendor/build.prop" ;;
-      system) targets="/system/system/build.prop /system/build.prop" ;;
-      both) targets="/vendor/build.prop /system/system/build.prop /system/build.prop" ;;
+      system) targets="/system/system/build.prop /system/build.prop /system_root/system/build.prop /system_root/build.prop" ;;
+      both) targets="/vendor/build.prop /system/system/build.prop /system/build.prop /system_root/system/build.prop /system_root/build.prop" ;;
       /*) targets="$scope" ;;
       *) targets="$scope" ;;
     esac
 
-    for file_check in $targets; do
+    for file_check in $(printf '%s' "$targets" | tr ' ' '\n'); do
       if [ -f "$file_check" ]; then
         match_info=$(grep $grep_opts -n -- "$pattern" "$file_check" 2>/dev/null | head -n1)
         if [ -n "$match_info" ]; then
           match_line=$(echo "$match_info" | cut -d: -f1)
           plen=$(printf "%s" "$pattern" | wc -c)
-          if [ "$plen" -gt "$best_len" ] || { [ "$plen" -eq "$best_len" ] && [ "$match_line" -lt "$best_line_num" ]; } || { [ "$plen" -eq "$best_len" ] && [ "$match_line" -eq "$best_line_num" ] && [ "$cfg_index" -lt "$best_index" ] 2>/dev/null; }; then
+          entry_prio=0
+          [ "$action" = "auto" ] && entry_prio=1
+          best_prio=0
+          [ "$best_action" = "auto" ] && best_prio=1
+          if [ "$plen" -gt "$best_len" ] || \
+             { [ "$plen" -eq "$best_len" ] && [ "$entry_prio" -gt "$best_prio" ]; } || \
+             { [ "$plen" -eq "$best_len" ] && [ "$entry_prio" -eq "$best_prio" ] && [ "$match_line" -lt "$best_line_num" ]; } || \
+             { [ "$plen" -eq "$best_len" ] && [ "$entry_prio" -eq "$best_prio" ] && [ "$match_line" -eq "$best_line_num" ] && [ "$cfg_index" -lt "$best_index" ] 2>/dev/null; }; then
             best_len=$plen
             best_line_num=$match_line
             best_entry="$entry"
