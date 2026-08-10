@@ -299,8 +299,8 @@ if grep -q "legacy_timestamp_source=" /cache/fk_feat 2>/dev/null; then
     patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=$val"
     # fk_feat_uname_bpf_spoof=1
   elif grep -q "uname_bpf_spoof" /cache/fk_feat 2>/dev/null; then
-    log_feat "BPF spoof: mode 1"
-    patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=1"
+    log_feat "BPF spoof: mode 2"
+    patch_cmdline "uname_bpf_spoof" "uname_bpf_spoof=2"
     # fk_feat_uname_bpf_spoof=1
   fi
 
