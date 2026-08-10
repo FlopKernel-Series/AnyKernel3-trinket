@@ -85,6 +85,13 @@ check_bpf_spoofing() {
     return 0
   fi
 
+  # Make sure /system is mounted before system-scoped checks
+  if [ ! -f /system/build.prop ] && [ ! -f /system/system/build.prop ]; then
+    if ! mount /system 2>/dev/null; then
+      mount /dev/block/by-name/system /system 2>/dev/null
+    fi
+  fi
+
   # Evaluate all entries and choose the best match (most specific)
   # Best = longest pattern length, tie -> earliest line number in target file, tie -> first config order
   best_len=0
@@ -124,8 +131,8 @@ check_bpf_spoofing() {
     scope_lc="$(echo "$scope" | tr '[:upper:]' '[:lower:]')"
     case "$scope_lc" in
       vendor) targets="/vendor/build.prop" ;;
-      system) targets="/system/build.prop" ;;
-      both) targets="/vendor/build.prop /system/build.prop" ;;
+      system) targets="/system/system/build.prop /system/build.prop" ;;
+      both) targets="/vendor/build.prop /system/system/build.prop /system/build.prop" ;;
       /*) targets="$scope" ;;
       *) targets="$scope" ;;
     esac
